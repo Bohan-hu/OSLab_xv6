@@ -3,8 +3,8 @@
 #include "user/user.h"
 
 int main(int argc, char *argv[]) {
-    if(argc!=1) {
-        printf("sleep: usage sleep [n]")
+    if(argc!=2) {
+        printf("sleep: usage sleep [n]\n");
         exit();
     } 
     sleep(atoi(argv[1]));
