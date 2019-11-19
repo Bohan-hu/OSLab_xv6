@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[]) {
     if(argc!=2) {
-        printf("sleep: usage sleep [n]\n");
+        printf("sleep: usage sleep [n]\en");
         exit();
     } 
     sleep(atoi(argv[1]));
