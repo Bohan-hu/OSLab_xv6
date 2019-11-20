@@ -19,13 +19,13 @@ int main(int argc, char *argv[]) {
         printf("%d: received ",getpid());
         printf("%s\n",buf);
         //write to the pipe
-        write(child_fd[1],"pong\en",6);
+        write(child_fd[1],"pong",5);
         close(child_fd[1]);
         exit();
     } else {
         close(parent_fd[0]); 
         close(child_fd[1]);
-        write(parent_fd[1], "ping\en", 6);
+        write(parent_fd[1], "ping", 5);
         close(parent_fd[1]);
         char buf[512];
         read(child_fd[0],buf,512);
