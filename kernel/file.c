@@ -12,17 +12,32 @@
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
+#include "stddef.h"
+#define INIT_SIZE 64
+
+//bd_malloc不会将内存清零
+//bd_print可以打印分配器的状态
+
+#define file2node(node) (file_list*)((void*)(node) - (void*)&(((file_list*)0)->file))
+
+typedef struct _fl {
+  struct file file;
+  struct list list_head;
+} file_list;
 
 struct devsw devsw[NDEV];
+
 struct {
   struct spinlock lock;
-  struct file file[NFILE];
+  struct list list_head;  //动态分配
 } ftable;
 
 void
 fileinit(void)
 {
   initlock(&ftable.lock, "ftable");
+  //对描述符初始化
+  lst_init(&(ftable.list_head));
 }
 
 // Allocate a file structure.
@@ -30,14 +45,15 @@ struct file*
 filealloc(void)
 {
   struct file *f;
-
   acquire(&ftable.lock);
-  for(f = ftable.file; f < ftable.file + NFILE; f++){
-    if(f->ref == 0){
-      f->ref = 1;
-      release(&ftable.lock);
-      return f;
-    }
+  file_list *node;
+  if( (node = bd_malloc(sizeof(file_list))) != 0) {
+    // printf("Allocated\n");
+    lst_push(&(ftable.list_head), &(node->list_head));
+    f = &(node->file);
+    f->ref = 1;
+    release(&ftable.lock);
+    return f;
   }
   release(&ftable.lock);
   return 0;
@@ -57,29 +73,29 @@ filedup(struct file *f)
 
 // Close file f.  (Decrement ref count, close when reaches 0.)
 void
-fileclose(struct file *f)
+fileclose(struct file *f)   //需要修改，ff不需要了
 {
-  struct file ff;
-
-  acquire(&ftable.lock);
+  acquire(&ftable.lock);    //不能改动
   if(f->ref < 1)
     panic("fileclose");
   if(--f->ref > 0){
     release(&ftable.lock);
     return;
   }
-  ff = *f;
-  f->ref = 0;
-  f->type = FD_NONE;
-  release(&ftable.lock);
+  file_list* node= file2node(f);
+  lst_remove(&(node->list_head));
+  release(&ftable.lock);  //不能改动
 
-  if(ff.type == FD_PIPE){
-    pipeclose(ff.pipe, ff.writable);
-  } else if(ff.type == FD_INODE || ff.type == FD_DEVICE){
-    begin_op(ff.ip->dev);
-    iput(ff.ip);
-    end_op(ff.ip->dev);
+  //需要对文件进行关闭，因为f->ref = 0了
+
+  if(f->type == FD_PIPE){
+    pipeclose(f->pipe, f->writable);
+  } else if(f->type == FD_INODE || f->type == FD_DEVICE){
+    begin_op(f->ip->dev);
+    iput(f->ip);
+    end_op(f->ip->dev);
   }
+  bd_free(node);
 }
 
 // Get metadata about file f.
