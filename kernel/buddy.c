@@ -240,6 +240,7 @@ bd_mark(void *start, void *stop)
     for(; bi < bj; bi++) {
       if(k > 0) {
         // if a block is allocated at size k, mark it as split too.
+        // 某个块被分配了，那么他一定是被分割了
         bit_set(bd_sizes[k].split, bi);
       }
       bit_set(bd_sizes[k].alloc, bi);
@@ -247,12 +248,18 @@ bd_mark(void *start, void *stop)
   }
 }
 
+
+// Buddy: 一个被分配块，平均拆分成两个大小是原来一半的块单元，这两个块单元互为伙伴
+// 块B的伙伴必须大小和B一样大，并且内存地址相邻
+// 块单元在内存中的地址需要能被自己的大小整除
 // If a block is marked as allocated and the buddy is free, put the
 // buddy on the free list at size k.
 int
 bd_initfree_pair(int k, int bi) {
+  //找到伙伴的index，处在一组中
   int buddy = (bi % 2 == 0) ? bi+1 : bi-1;
   int free = 0;
+  // 伙伴只有一个被分配，则另一个被挂到了空闲链表上
   if(bit_isset(bd_sizes[k].alloc, bi) !=  bit_isset(bd_sizes[k].alloc, buddy)) {
     // one of the pair is free
     // bi和他的buddy有且仅有一个是free的
@@ -264,6 +271,7 @@ bd_initfree_pair(int k, int bi) {
     else
       lst_push(&bd_sizes[k].free, addr(k, bi));      // put bi on free list
   }
+  // 返回空余的地址
   return free;
 }
   
@@ -370,7 +378,6 @@ bd_init(void *base, void *end) {
   
   // initialize free lists for each size k
   int free = bd_initfree(p, bd_end);
-
   // check if the amount that is free is what we expect
   if(free != BLK_SIZE(MAXSIZE)-meta-unavailable) {
     printf("free %d %d\n", free, BLK_SIZE(MAXSIZE)-meta-unavailable);
