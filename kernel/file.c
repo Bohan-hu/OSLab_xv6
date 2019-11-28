@@ -87,7 +87,7 @@ fileclose(struct file *f)   //需要修改，ff不需要了
   release(&ftable.lock);  //不能改动
 
   //需要对文件进行关闭，因为f->ref = 0了
-
+  bd_print();
   if(f->type == FD_PIPE){
     pipeclose(f->pipe, f->writable);
   } else if(f->type == FD_INODE || f->type == FD_DEVICE){
