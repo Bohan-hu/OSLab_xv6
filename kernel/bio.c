@@ -25,11 +25,11 @@
 
 struct {
   struct spinlock lock;
-  struct buf buf[NBUF];
+  struct buf buf[NBUF]; // 初始化时候分配
 
   // Linked list of all buffers, through prev/next.
   // head.next is most recently used.
-  struct buf head;
+  struct buf head;  // 后续访问
 } bcache;
 
 void
@@ -53,7 +53,7 @@ binit(void)
 
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
-// In either case, return locked buffer.
+// In either case, return locked buffer. 如果buffer存在，返回加锁的buffer
 static struct buf*
 bget(uint dev, uint blockno)
 {
@@ -65,25 +65,25 @@ bget(uint dev, uint blockno)
   for(b = bcache.head.next; b != &bcache.head; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
-      release(&bcache.lock);
-      acquiresleep(&b->lock);
+      release(&bcache.lock);  // 保护buffer的信息
+      acquiresleep(&b->lock); // 保护buffer存储的内容
       return b;
     }
   }
 
-  // Not cached; recycle an unused buffer.
-  for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
-    if(b->refcnt == 0) {
+  // Not cached; recycle an unused buffer.  如果没有找到对应的buffer块，则回收一个
+  for(b = bcache.head.prev; b != &bcache.head; b = b->prev){  // 往前扫描
+    if(b->refcnt == 0) {  // 找到一个目前没有在使用的buffer
       b->dev = dev;
       b->blockno = blockno;
-      b->valid = 0;
+      b->valid = 0;   // 保证调用者从磁盘取出数据
       b->refcnt = 1;
       release(&bcache.lock);
       acquiresleep(&b->lock);
       return b;
     }
   }
-  panic("bget: no buffers");
+  panic("bget: no buffers");  // 所有的block都很忙
 }
 
 // Return a locked buf with the contents of the indicated block.
@@ -92,8 +92,8 @@ bread(uint dev, uint blockno)
 {
   struct buf *b;
 
-  b = bget(dev, blockno);
-  if(!b->valid) {
+  b = bget(dev, blockno); // 如果有，直接返回
+  if(!b->valid) { // 如果没有，从磁盘里读出来
     virtio_disk_rw(b->dev, b, 0);
     b->valid = 1;
   }
@@ -102,7 +102,7 @@ bread(uint dev, uint blockno)
 
 // Write b's contents to disk.  Must be locked.
 void
-bwrite(struct buf *b)
+bwrite(struct buf *b) // 把b的内容写回到磁盘
 {
   if(!holdingsleep(&b->lock))
     panic("bwrite");
@@ -112,7 +112,7 @@ bwrite(struct buf *b)
 // Release a locked buffer.
 // Move to the head of the MRU list.
 void
-brelse(struct buf *b)
+brelse(struct buf *b) // release，释放并将其移动到列表最前面，表示LRU
 {
   if(!holdingsleep(&b->lock))
     panic("brelse");
