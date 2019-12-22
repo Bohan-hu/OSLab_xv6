@@ -381,12 +381,12 @@ bmap(struct inode *ip, uint bn)
   uint addr, *a;
   struct buf *bp;
 
-  if(bn < NDIRECT){
+  if(bn < NDIRECT){   //从NDIRECT开始
     if((addr = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr = balloc(ip->dev);
     return addr;
   }
-  bn -= NDIRECT;
+  bn -= NDIRECT;  // 从NINDIRECT开始
 
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
@@ -396,6 +396,30 @@ bmap(struct inode *ip, uint bn)
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
       a[bn] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    return addr;
+  }
+  bn -= NINDIRECT;
+
+  if(bn < NININDIRECT) {  // 二级索引
+    uint firstindex = bn/NINDIRECT;
+    uint secondindex = bn%NINDIRECT;
+    if((addr = ip->addrs[NDIRECT + 1]) == 0)  // 分配空间
+      ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);  // OK
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if((addr = a[firstindex]) == 0){
+      a[firstindex] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    // 分配第二级
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if((addr = a[secondindex]) == 0){
+      a[secondindex] = addr = balloc(ip->dev);    //TMD这里写成firstindex浪费了半小时！！！！
       log_write(bp);
     }
     brelse(bp);
@@ -413,9 +437,9 @@ bmap(struct inode *ip, uint bn)
 static void
 itrunc(struct inode *ip)
 {
-  int i, j;
+  int i, j, k;
   struct buf *bp;
-  uint *a;
+  uint *a,*b;
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
@@ -436,6 +460,27 @@ itrunc(struct inode *ip)
     ip->addrs[NDIRECT] = 0;
   }
 
+  if(ip->addrs[NDIRECT + 1]){
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    struct buf *bbp;
+    a = (uint*)bp->data;
+    for(j = 0; j < NINDIRECT; j++){ // 遍历一级索引
+      if(a[j]) {
+        bbp = bread(ip->dev, a[j]);
+        b = (uint*)bbp->data;
+        for(k = 0; k < NINDIRECT; k++){ // 遍历二级索引
+          if(b[k]) {
+            bfree(ip->dev, b[k]);
+          }
+        }
+        brelse(bbp);
+        bfree(ip->dev, a[j]);
+    }
+  }
+  brelse(bp);
+  bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+  ip->addrs[NDIRECT + 1] = 0;
+  }
   ip->size = 0;
   iupdate(ip);
 }
