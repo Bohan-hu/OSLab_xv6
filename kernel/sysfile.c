@@ -334,7 +334,7 @@ sys_open(void)
         } 
         iunlockput(ip);
         if((ip = namei(path)) == 0) {
-          printf("can't locate");
+          // printf("can't locate");
           fail = 1;
           break;
         }
