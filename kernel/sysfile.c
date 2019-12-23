@@ -283,27 +283,6 @@ create(char *path, short type, short major, short minor)
   return ip;
 }
 #define MAXDEPTH 10
-uint64 handle_link(struct inode *ip, int depth) {
-  if( depth > MAXDEPTH ) return 0;
-  if(ip == 0) return 0;
-  char path[MAXPATH];
-  memset(path,0,MAXPATH);
-  if(readi(ip, 0, (uint64)path, 0, MAXPATH) < 0) {
-    iunlockput(ip);
-    return 0;
-  }
-  
-  printf("path=%s\n",path);
-  if((ip = namei(path)) == 0) return 0;
-  if(ip->type == T_SYMLINK) {
-    // printf("IN symlink");
-    iunlockput(ip);
-    return handle_link(ip, depth+1);
-  } else {
-    return (uint64)ip;
-  }
-}
-
 uint64
 sys_open(void)
 {
@@ -317,7 +296,6 @@ sys_open(void)
     return -1;
 
   begin_op(ROOTDEV);
-
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
@@ -351,28 +329,22 @@ sys_open(void)
       }
       if(ip->type == T_SYMLINK) {
         if(readi(ip, 0, (uint64)path, 0, MAXPATH) < 0) {
-          iunlockput(ip);
           fail = 1;
           break;
         } 
+        iunlockput(ip);
         if((ip = namei(path)) == 0) {
           printf("can't locate");
-          // iunlockput(ip);
           fail = 1;
           break;
         }
-      }
-      ilock(ip);
-      if(ip->type == T_SYMLINK) {
-    // printf("IN symlink");
-        iunlockput(ip);
+        ilock(ip);
       } else {
-        printf("path=%s\n",path);
+        // printf("path=%s\n",path);
         break;
       }
     }
     if(fail || i == MAXDEPTH) {
-      // iunlockput(ip);
       end_op(ROOTDEV);
       return -1;
     }
@@ -403,7 +375,7 @@ sys_open(void)
   f->off = 0;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-  iunlock(ip);  //这里unlock有问题
+  iunlock(ip); 
   end_op(ROOTDEV);
 
   return fd;
