@@ -12,3 +12,7 @@
 #define FSSIZE       2000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
 #define NDISK        2
+#define PROT_READ    0x01
+#define PROT_WRITE   0x02
+#define MAP_SHARED   0x04
+#define MAP_PRIVATE  0x08

@@ -95,3 +95,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64 sys_mmap(void *addr, uint64 length, int prot, int flags, int fd, uint64 offset) {
+  return 0xffffffffffffffff;
+}
+
+uint64 sys_munmap(void *addr, uint64 length) {
+  return 0xffffffffffffffff;
+}
