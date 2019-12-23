@@ -8,7 +8,7 @@
 #include "file.h"
 #include "proc.h"
 #include "defs.h"
-
+// TODO: Allocproc初始化结构体，fork的时候复制一份，free的时候处理好
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];

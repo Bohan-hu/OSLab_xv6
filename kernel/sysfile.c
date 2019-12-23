@@ -483,3 +483,53 @@ sys_pipe(void)
   return 0;
 }
 
+uint64 sys_mmap(void) {
+  // parameters
+  uint64 addr, off, length;
+  int prot, flags, fd;
+  if( argaddr(0, &addr) < 0 || 
+      argaddr(1,&length) < 0 || 
+      argint(2,&prot) < 0 || 
+      argint(3,&flags) < 0 ||
+      argint(4,&fd) < 0 || 
+      argaddr(5,&off) < 0) {
+    return -1;
+  }
+  struct proc *currproc = myproc();
+  // scan the list and allocate a new space for VMA
+  int i;
+  int alloc_pos = -1;
+  for(i=0; i<MAX_VMA; i++) {  // find a free space to alloca VMA
+    if(currproc->vmatable[i].ref == 0) {
+      alloc_pos = i;
+      vmatable[i].ref = 1;
+      break;
+    }
+  }
+  if(alloc_pos == -1) {
+    // out of free space, exit now...
+    return -1;
+  }
+  // calculate the num of pages needed
+  int num_pages = (length + PGSIZE - 1) / PGSIZE;
+  struct file* fp;
+  if((fp = currproc->ofile[fd]) == 0) {
+    // non-exist file
+    return -1;
+  }
+  // TODO: Add other error handlers....
+
+  // first initialize the entry
+  vmatable[alloc_pos].f = fp;
+  // vmatable[alloc_pos].prot = ?;
+  // vmatable[alloc_pos].address = ?;
+  vmatable[alloc_pos].off = off;
+  filedup(f);
+  // allocate physical pages for it
+  // Allocate from the top PHYSTOP
+  
+  
+}
+uint64 sys_munmap(void) {
+  return -1;
+}

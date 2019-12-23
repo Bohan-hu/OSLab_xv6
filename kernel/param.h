@@ -16,3 +16,4 @@
 #define PROT_WRITE   0x02
 #define MAP_SHARED   0x04
 #define MAP_PRIVATE  0x08
+#define MAX_VMA 64
