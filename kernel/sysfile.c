@@ -508,6 +508,7 @@ uint64 sys_mmap(void) {
   }
   if(alloc_pos == -1) {
     // out of free space, exit now...
+    currproc->vmatable[i].ref = 0;
     return -1;
   }
   // calculate the num of pages needed
@@ -516,11 +517,15 @@ uint64 sys_mmap(void) {
   uint64 alloc_addr = PGROUNDDOWN( currproc->mmap_addr_buttom - length );
   struct file* fp;
   if((fp = currproc->ofile[fd]) == 0) {
+    currproc->vmatable[i].ref = 0;
     // non-exist file
     return -1;
   }
   // Check the permissions to pass the test
-
+  if( ((prot & PROT_READ) && (fp->readable == 0)) || ((prot & PROT_WRITE) && (fp->writable == 0) && (flag & MAP_SHARED)) ) {
+    currproc->vmatable[i].ref = 0;
+    return -1;
+  }
   // first initialize the entry
   currproc->vmatable[alloc_pos].file = fp;
   currproc->vmatable[alloc_pos].prot = prot;
@@ -557,20 +562,24 @@ uint64 sys_munmap(void) {
     }
   }
   if(fp == 0) {
+    // printf("unable to locate a file\n");
     return -1;
   }
 
   if(vmaptr->flag & MAP_SHARED) { // 是否需要回写文件
-
+    filewrite(fp, addr, length);
   }
   if(length == vmaptr->length) {  // remove all pages
+    // printf("unmap the whole file\n");
     fp->ref--;
     vmaptr->ref = 0; // 释放
   } else {  // 处理非完整的unmap
     if(addr == vmaptr->address) { // 如果是起始地址
-      vmaptr->address = addr;
+      // printf("size = %d, unmap the head of file\n", length);
+      vmaptr->address += length;
       vmaptr->length -= length;
     } else { // 如果位于尾部
+      // printf("size = %d, unmap the tail of file\n",length);
       vmaptr->length -= length;
     }
   }

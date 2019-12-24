@@ -291,6 +291,15 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  // copy the state
+  for(int i = 0; i < MAX_VMA; i++ ) {
+    np->vmatable[i] = p->vmatable[i];
+    if(p->vmatable[i].ref == 1) {
+      filedup(p->vmatable[i].file);
+    }
+  }
+  np->mmap_addr_top = p->mmap_addr_top;
+  np->mmap_addr_buttom = p->mmap_addr_buttom;
   release(&np->lock);
 
   return pid;
@@ -321,6 +330,26 @@ reparent(struct proc *p)
     }
   }
 }
+
+// unmap all the mapped files
+void unmap_proc(struct proc *p) {
+  struct file* fp = 0; 
+  struct VMA* vmaptr;
+  int i;
+  for(i = 0; i < MAX_VMA; i++) {
+    vmaptr = &(p->vmatable[i]);
+    if(vmaptr->ref != 0) { 
+        p->vmatable[i].ref = 0; // 释放
+        fp = vmaptr->file;
+        if(vmaptr->flag & MAP_SHARED) { // 是否需要回写文件
+          filewrite(fp, vmaptr->address, vmaptr->length);
+        }
+        break;
+      }
+    uvmunmap(p->pagetable, vmaptr->address, vmaptr->length, 1);
+  }
+}
+
 
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
@@ -386,6 +415,12 @@ exit(int status)
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
+  // for( int i = 0; i < MAX_VMA; i++ ) {
+  //   if( p->vmatable[i].ref == 1 ) {
+  //     munmap(p->vmatable[i].address, p->vmatable[i].length);
+  //   }
+  // }
+  unmap_proc(p);
 }
 
 // Wait for a child process to exit and return its pid.
