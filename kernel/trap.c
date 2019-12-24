@@ -5,7 +5,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 struct spinlock tickslock;
 uint ticks;
 
@@ -68,9 +70,49 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(r_scause() == 13 || r_scause() == 15) {
+    // allocate space for a file
+    uint64 addr = PGROUNDDOWN(r_stval());
+    char *mem = kalloc();
+    if(mem == 0){
+      goto fail;
+    }
+    // find the file
+    struct file* fp = 0; 
+    struct VMA vma;
+    for(int i = 0; i < MAX_VMA; i++) {
+      vma = p->vmatable[i];
+      if(vma.ref != 0) { // 继续判断是否在范围内
+        if(r_stval() >= vma.address && r_stval() < vma.address+vma.length) {
+          fp = vma.file;
+          break;
+        }
+      }
+    }
+    if(fp == 0){
+      kfree(mem);
+      goto fail;
+    }
+    // set the flags
+    int page_flags = 0 | PTE_U;
+    if( vma.prot & PROT_READ ) page_flags |= PTE_R;
+    if( vma.prot & PROT_WRITE) page_flags |= PTE_W;
+    // mappages
+    memset(mem, 0, PGSIZE);
+    if(mappages(p->pagetable, addr, PGSIZE, (uint64)mem, page_flags) != 0) {
+      kfree(mem);
+      goto fail;
+    }
+
+    // calculate the offset
+    uint64 offset = addr - vma.address + vma.off;
+    // read from file to memory
+    readi(fp->ip, 1, addr, offset, PGSIZE);
+
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
+    fail:
     printf("usertrap(): unexpected scause %p (%s) pid=%d\n", r_scause(), scause_desc(r_scause()), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;

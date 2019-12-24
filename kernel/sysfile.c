@@ -15,7 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
-
+#include "memlayout.h"
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -486,11 +486,11 @@ sys_pipe(void)
 uint64 sys_mmap(void) {
   // parameters
   uint64 addr, off, length;
-  int prot, flags, fd;
+  int prot, flag, fd;
   if( argaddr(0, &addr) < 0 || 
       argaddr(1,&length) < 0 || 
       argint(2,&prot) < 0 || 
-      argint(3,&flags) < 0 ||
+      argint(3,&flag) < 0 ||
       argint(4,&fd) < 0 || 
       argaddr(5,&off) < 0) {
     return -1;
@@ -502,7 +502,7 @@ uint64 sys_mmap(void) {
   for(i=0; i<MAX_VMA; i++) {  // find a free space to alloca VMA
     if(currproc->vmatable[i].ref == 0) {
       alloc_pos = i;
-      vmatable[i].ref = 1;
+      currproc->vmatable[i].ref = 1;
       break;
     }
   }
@@ -511,7 +511,9 @@ uint64 sys_mmap(void) {
     return -1;
   }
   // calculate the num of pages needed
-  int num_pages = (length + PGSIZE - 1) / PGSIZE;
+  // int num_pages = (length + PGSIZE - 1) / PGSIZE;
+  // printf("%p\n", currproc->mmap_addr_buttom - length);
+  uint64 alloc_addr = PGROUNDDOWN( currproc->mmap_addr_buttom - length );
   struct file* fp;
   if((fp = currproc->ofile[fd]) == 0) {
     // non-exist file
@@ -520,14 +522,18 @@ uint64 sys_mmap(void) {
   // TODO: Add other error handlers....
 
   // first initialize the entry
-  vmatable[alloc_pos].f = fp;
-  // vmatable[alloc_pos].prot = ?;
-  // vmatable[alloc_pos].address = ?;
-  vmatable[alloc_pos].off = off;
-  filedup(f);
+  currproc->vmatable[alloc_pos].file = fp;
+  currproc->vmatable[alloc_pos].prot = prot;
+  currproc->vmatable[alloc_pos].flag = flag;
+  currproc->vmatable[alloc_pos].address = alloc_addr;
+  currproc->vmatable[alloc_pos].length = length;
+  currproc->vmatable[alloc_pos].off = off;
+  filedup(fp);
   // allocate physical pages for it
   // Allocate from the top PHYSTOP
-  
+  printf("Alloc length: %d, PHYSTOP = %p, base_addr = %p \n", length, PHYSTOP, alloc_addr);
+  currproc->mmap_addr_buttom = alloc_addr;
+  return alloc_addr;
   
 }
 uint64 sys_munmap(void) {

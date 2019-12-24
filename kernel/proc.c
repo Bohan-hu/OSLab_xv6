@@ -122,7 +122,15 @@ found:
   memset(&p->context, 0, sizeof p->context);
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  
+  // 初始化VMA的结构
+  for(int i = 0; i < MAX_VMA; i++) {
+    p->vmatable[i].ref = 0;
+    p->vmatable[i].prot = 0;
+    p->vmatable[i].flag = 0;
+  }
+  p->mmap_addr_top = PGROUNDDOWN(PHYSTOP);
+  p->mmap_addr_buttom = PGROUNDDOWN(PHYSTOP);
   return p;
 }
 
