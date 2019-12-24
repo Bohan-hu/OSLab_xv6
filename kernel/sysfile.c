@@ -519,7 +519,7 @@ uint64 sys_mmap(void) {
     // non-exist file
     return -1;
   }
-  // TODO: Add other error handlers....
+  // Check the permissions to pass the test
 
   // first initialize the entry
   currproc->vmatable[alloc_pos].file = fp;
@@ -531,11 +531,49 @@ uint64 sys_mmap(void) {
   filedup(fp);
   // allocate physical pages for it
   // Allocate from the top PHYSTOP
-  printf("Alloc length: %d, PHYSTOP = %p, base_addr = %p \n", length, PHYSTOP, alloc_addr);
+  // printf("Alloc length: %d, PHYSTOP = %p, base_addr = %p \n", length, PHYSTOP, alloc_addr);
   currproc->mmap_addr_buttom = alloc_addr;
   return alloc_addr;
   
 }
 uint64 sys_munmap(void) {
-  return -1;
+  // Implement munmap: find the VMA for the address range and unmap the specified pages (hint: use uvmunmap). If munmap removes all pages of a previous mmap, it should decrement the reference count of the corresponding struct file. If an unmapped page has been modified and the file is mapped MAP_SHARED, write the page back to the file. Look at filewrite for inspiration.
+  uint64 addr, length;
+  if( argaddr(0, &addr) < 0 ||  argaddr(1,&length) < 0 ) {
+    return -1;
+  }
+  // find which file
+  struct file* fp = 0; 
+  struct VMA* vmaptr;
+  int i;
+  for(i = 0; i < MAX_VMA; i++) {
+    vmaptr = &(myproc()->vmatable[i]);
+    if(vmaptr->ref != 0) { 
+      if(addr >= vmaptr->address && addr < vmaptr->address+vmaptr->length) {
+        // p->vmatable[i].ref = 0; // 释放
+        fp = vmaptr->file;
+        break;
+      }
+    }
+  }
+  if(fp == 0) {
+    return -1;
+  }
+
+  if(vmaptr->flag & MAP_SHARED) { // 是否需要回写文件
+
+  }
+  if(length == vmaptr->length) {  // remove all pages
+    fp->ref--;
+    vmaptr->ref = 0; // 释放
+  } else {  // 处理非完整的unmap
+    if(addr == vmaptr->address) { // 如果是起始地址
+      vmaptr->address = addr;
+      vmaptr->length -= length;
+    } else { // 如果位于尾部
+      vmaptr->length -= length;
+    }
+  }
+  uvmunmap(myproc()->pagetable, addr, length, 1);
+  return 0;
 }
