@@ -521,14 +521,11 @@ uint64 sys_symlink(void) {
   char path[MAXPATH];
   struct inode *ip;
   
-  // 上面随便找一个函数抄的
   begin_op(ROOTDEV);  
   if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) == 0 || (ip = create(path, T_SYMLINK, 0, 0)) == 0) {  // 短路特性，前面不满足，后面也不会执行
     end_op(ROOTDEV);
     return -1;
   }
-  // 就随便找一个地方存算了
-  // ilock(ip); // P81的代码抄的
   if(writei(ip, 0, (uint64)target, 0, MAXPATH) < 0) { // 如果写失败了，返回
     iunlockput(ip);
     end_op(ROOTDEV);
