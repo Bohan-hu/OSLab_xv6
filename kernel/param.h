@@ -12,3 +12,4 @@
 #define FSSIZE       200000   // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
 #define NDISK        2
+#define MAXDEPTH     10    // 最大路径长度
